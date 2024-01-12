@@ -1,3 +1,4 @@
+# Importē nepieciešamās bibliotēkas
 import requests
 import json
 import datetime
@@ -11,20 +12,20 @@ from datetime import datetime
 from configparser import ConfigParser
 from mysql.connector import Error
 
-# Loading logging configuration
+# Ielādē iepriekš konfigurēto žurnāla konfigurāciju no YAML faila
 with open('./log_worker.yaml', 'r') as stream:
     log_config = yaml.safe_load(stream)
 
 logging.config.dictConfig(log_config)
 
-# Creating logger
+# Izveido žurnāla ierakstītāju
 logger = logging.getLogger('root')
 
-
+# Paziņo par asteroidu apstrādes servisu
 logger.info('Asteroid processing service')
-# initialink and reading config values
-logger.info('Loading configuration from file')
 
+# Inicializē un ielādē konfigurācijas vērtības no faila
+logger.info('Loading configuration from file')
 try:
     config = ConfigParser()
     config.read('config.ini')
@@ -40,10 +41,12 @@ except:
     logger.exception('')
 logger.info('DONE')
 
+# Inicializē datu bāzi
 def init_db():
 	global connection
 	connection = mysql.connector.connect(host=mysql_config_mysql_host, database=mysql_config_mysql_db, user=mysql_config_mysql_user, password=mysql_config_mysql_pass)
 
+# Atgriež datu bāzes kursoru
 def get_cursor():
 	global connection
 	try:
@@ -55,7 +58,7 @@ def get_cursor():
 		connection.commit()
 	return connection.cursor()
 
-# Check if asteroid exists in db
+# Pārbauda, vai asteroīds eksistē datu bāzē
 def mysql_check_if_ast_exists_in_db(request_day, ast_id):
 	records = []
 	cursor = get_cursor()
@@ -70,7 +73,7 @@ def mysql_check_if_ast_exists_in_db(request_day, ast_id):
 		pass
 	return records[0][0]
 
-# Asteroid value insert
+# Ievieto asteroīda vērtības datu bāzē
 def mysql_insert_ast_into_db(create_date, hazardous, name, url, diam_min, diam_max, ts, dt_utc, dt_local, speed, distance, ast_id):
 	cursor = get_cursor()
 	try:
@@ -82,6 +85,7 @@ def mysql_insert_ast_into_db(create_date, hazardous, name, url, diam_min, diam_m
 		logger.error('Problem inserting asteroid values into DB: ' + str(e))
 		pass
 
+# Pārsūta asteroidu masīvus datu bāzē
 def push_asteroids_arrays_to_db(request_day, ast_array, hazardous):
 	for asteroid in ast_array:
 		if mysql_check_if_ast_exists_in_db(request_day, asteroid[9]) == 0:
@@ -97,7 +101,7 @@ if __name__ == "__main__":
 
    init_db()
 
-   # Opening connection to mysql DB
+   # Atver savienojumu ar MySQL datu bāzi
    logger.info('Connecting to MySQL DB')
    try:
        # connection = mysql.connector.connect(host=mysql_config_mysql_host, database=mysql_config_mysql_db, user=mysql_config_mysql_user, password=mysql_config_mysql_pass)
@@ -114,44 +118,45 @@ if __name__ == "__main__":
        logger.error('Error while connecting to MySQL' + str(e))
 
 
-# Getting todays date
+# Iegūst šodienas datumu
 dt = datetime.now()
 request_date = str(dt.year) + "-" + str(dt.month).zfill(2) + "-" + str(dt.day).zfill(2)  
 logger.debug("Generated today's date: " + str(request_date))
 
-#Requesting info from NASA API
+# Pieprasa informāciju no NASA API
 logger.debug("Request url: " + str(nasa_api_url + "rest/v1/feed?start_date=" + request_date + "&end_date=" + request_date + "&api_key=" + nasa_api_key))
 r = requests.get(nasa_api_url + "rest/v1/feed?start_date=" + request_date + "&end_date=" + request_date + "&api_key=" + nasa_api_key)
-#Printing NASA request response data
+# Izdrukā NASA pieprasījuma datus
 logger.debug("Response status code: " + str(r.status_code))
 logger.debug("Response headers: " + str(r.headers))
 logger.debug("Response content: " + str(r.text))
 
-# Check if the HTTP status code is 200 (OK)
+# Pārbauda, vai HTTP statusa kods ir 200 (OK). HTTP statusa kods 200 ir veiksmīga atbilde no servera. 
 if r.status_code == 200:
-
+# Parsē JSON datus
 	json_data = json.loads(r.text)
-# Initialize empty lists to store asteroid data
+ # Inicializē tukšus sarakstus, lai glabātu asteroīdu datus
 	ast_safe = []
 	ast_hazardous = []
-# Check if 'element_count' is present in the parsed JSON data
+# Pārbauda, vai 'element_count' ir pieejams parsētajos JSON datus
 	if 'element_count' in json_data:
-# If present, extract and convert the asteroid count to an integer
+ # Ja ir pieejams, izvelk un pārvērš asteroīdu skaitu par veselu skaitli
 		ast_count = int(json_data['element_count'])
- # Print the asteroid count for today
+ # Izdrukā asteroīdu skaitu šodien
 		logger.info("Asteroid count today: " + str(ast_count))
-# Check if there are asteroids for today
+# Pārbauda, vai ir asteroīdi šodien
 		if ast_count > 0:
-# Iterate through each asteroid in the 'near_earth_objects' list for the requested date
+# Iterē cauri katram asteroīdam 'near_earth_objects' sarakstā pieprasītajam datumam
 			for val in json_data['near_earth_objects'][request_date]:
-# Check if essential information is present in the asteroid data
+# Pārbauda, vai asteroīda datu būtiskā informācija ir pieejama
 				if 'name' and 'nasa_jpl_url' and 'estimated_diameter' and 'is_potentially_hazardous_asteroid' and 'close_approach_data' in val:
+					 # Izvelk un saglabā asteroīda nosaukumu un NASA JPL URL
 					tmp_ast_name = val['name']
 					tmp_ast_nasa_jpl_url = val['nasa_jpl_url']
-					# Getting id of asteroid
+					# Iegūst asteroīda identifikācijas numuru
 					tmp_ast_id = val['id']
 
-# Check if diameter information is available
+					# Pārbauda, vai ir pieejama diametra informācija
 					if 'kilometers' in val['estimated_diameter']:
 						if 'estimated_diameter_min' and 'estimated_diameter_max' in val['estimated_diameter']['kilometers']:
 							tmp_ast_diam_min = round(val['estimated_diameter']['kilometers']['estimated_diameter_min'], 3)
@@ -162,27 +167,27 @@ if r.status_code == 200:
 					else:
 						tmp_ast_diam_min = -1
 						tmp_ast_diam_max = -1
-
+					# Izvelk potenciāli bīstamīguma informāciju
 					tmp_ast_hazardous = val['is_potentially_hazardous_asteroid']
-# Check if there is close approach data for the asteroid
+					# Pārbauda, vai asteroīdam ir tuvināšanās dati
 					if len(val['close_approach_data']) > 0:
-# Extract close approach information
+						# Izvelk tuvināšanās informāciju
 						if 'epoch_date_close_approach' and 'relative_velocity' and 'miss_distance' in val['close_approach_data'][0]:
 							tmp_ast_close_appr_ts = int(val['close_approach_data'][0]['epoch_date_close_approach']/1000)
 							tmp_ast_close_appr_dt_utc = datetime.utcfromtimestamp(tmp_ast_close_appr_ts).strftime('%Y-%m-%d %H:%M:%S')
 							tmp_ast_close_appr_dt = datetime.fromtimestamp(tmp_ast_close_appr_ts).strftime('%Y-%m-%d %H:%M:%S')
-# Extract speed information
+							# Izvelk ātruma informāciju
 							if 'kilometers_per_hour' in val['close_approach_data'][0]['relative_velocity']:
 								tmp_ast_speed = int(float(val['close_approach_data'][0]['relative_velocity']['kilometers_per_hour']))
 							else:
 								tmp_ast_speed = -1
-# Extract miss distance information
+							 # Izvelk tuvuma informāciju
 							if 'kilometers' in val['close_approach_data'][0]['miss_distance']:
 								tmp_ast_miss_dist = round(float(val['close_approach_data'][0]['miss_distance']['kilometers']), 3)
 							else:
 								tmp_ast_miss_dist = -1
 						else:
-# If close approach data is incomplete, set default values
+							# Ja tuvināšanās dati ir nepilnīgi, iestata noklusētos vērtības
 							tmp_ast_close_appr_ts = -1
 							tmp_ast_close_appr_dt_utc = "1969-12-31 23:59:59"
 							tmp_ast_close_appr_dt = "1969-12-31 23:59:59"
@@ -193,39 +198,40 @@ if r.status_code == 200:
 						tmp_ast_close_appr_dt = "1970-01-01 00:00:00"
 						tmp_ast_speed = -1
 						tmp_ast_miss_dist = -1
-# Print information for each asteroid
+					# Izdrukā informāciju par katru asteroīdu
 					logger.info("------------------------------------------------------- >>")
 					logger.info("Asteroid name: " + str(tmp_ast_name) + " | INFO: " + str(tmp_ast_nasa_jpl_url) + " | Diameter: " + str(tmp_ast_diam_min) + " - " + str(tmp_ast_diam_max) + " km | Hazardous: " + str(tmp_ast_hazardous))
 					logger.info("Close approach TS: " + str(tmp_ast_close_appr_ts) + " | Date/time UTC TZ: " + str(tmp_ast_close_appr_dt_utc) + " | Local TZ: " + str(tmp_ast_close_appr_dt))
 					logger.info("Speed: " + str(tmp_ast_speed) + " km/h" + " | MISS distance: " + str(tmp_ast_miss_dist) + " km")
 
-					# Adding asteroid data to the corresponding array
+					# Pievieno asteroīda datus atbilstošajam masīvam
 					if tmp_ast_hazardous == True:
 						ast_hazardous.append([tmp_ast_name, tmp_ast_nasa_jpl_url, tmp_ast_diam_min, tmp_ast_diam_max, tmp_ast_close_appr_ts, tmp_ast_close_appr_dt_utc, tmp_ast_close_appr_dt, tmp_ast_speed, tmp_ast_miss_dist, tmp_ast_id])
 					else:
 						ast_safe.append([tmp_ast_name, tmp_ast_nasa_jpl_url, tmp_ast_diam_min, tmp_ast_diam_max, tmp_ast_close_appr_ts, tmp_ast_close_appr_dt_utc, tmp_ast_close_appr_dt, tmp_ast_speed, tmp_ast_miss_dist, tmp_ast_id])
-# Print a message if there are no asteroids that pose a threat to Earth
+# Izdrukā ziņu, ja šodien nav asteroīdu, kas rada draudus Zemei
 		else:
 			logger.info("No asteroids are going to hit earth today")
-# Print the count of hazardous and safe asteroids
+# Izdrukā potenciāli bīstamo un drošo asteroīdu skaitu
 	logger.info("Hazardous asteorids: " + str(len(ast_hazardous)) + " | Safe asteroids: " + str(len(ast_safe)))
-# Check if there are hazardous asteroids
+# Pārbauda, vai ir potenciāli bīstami asteroīdi
 	if len(ast_hazardous) > 0:
-# Sort the hazardous asteroids based on their close approach times
+# Sakārto potenciāli bīstamos asteroīdus pēc to tuvināšanās laikiem
 		ast_hazardous.sort(key = lambda x: x[4], reverse=False)
 
-# Print information about today's hazardous asteroids and their possible impact times
+# Izdrukā informāciju par šodienas potenciāli bīstamiem asteroīdiem un to iespējamajiem ietekmes laikiem
 		logger.info("Today's possible apocalypse (asteroid impact on earth) times:")
 		for asteroid in ast_hazardous:
 			logger.info(str(asteroid[6]) + " " + str(asteroid[0]) + " " + " | more info: " + str(asteroid[1]))
-# Sort the hazardous asteroids based on their closest passing distances
+# Sakārto potenciāli bīstamos asteroīdus pēc to tuvināšanās attālumiem
 		ast_hazardous.sort(key = lambda x: x[8], reverse=False)
 		logger.info("Closest passing distance is for: " + str(ast_hazardous[0][0]) + " at: " + str(int(ast_hazardous[0][8])) + " km | more info: " + str(ast_hazardous[0][1]))
 	else:
-# Print a message if there are no hazardous asteroids close passing Earth today
+# Izdrukā ziņu, ja šodien nav potenciāli bīstamu asteroīdu, kas tuvojas Zemei
 		logger.info("No asteroids close passing earth today")
+		# Pārsūta asteroīdu masīvus datu bāzē
 	push_asteroids_arrays_to_db(request_date, ast_hazardous, 1)
 	push_asteroids_arrays_to_db(request_date, ast_safe, 0)
+	# Ja nav veiksmīgas atbildes no API, izdrukā kļūdas ziņojumu
 else:
-# Print an error message if there is an issue with getting a response from the API
 	logger.error("Unable to get response from API. Response code: " + str(r.status_code) + " | content: " + str(r.text))
