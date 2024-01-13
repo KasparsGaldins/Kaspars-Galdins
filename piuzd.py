@@ -1,8 +1,8 @@
 import math
 
-skaitlis = round(math.pi, 10)
-print("skaitlis ir ar precizitati lidz 10 cipariem aiz komata:")
+skaitlis = round(math.pi,8)
+
+print("Pi skaitlis ir ar precizitati lidz 8 cipariem aiz komata:")
 print(skaitlis)
 
-
-#uzdevums ar 10 cipariem
+#Kods ir papildinats ar 10 cipariem
